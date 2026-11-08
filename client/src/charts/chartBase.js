@@ -1,8 +1,11 @@
 // Shared pieces of the hand-written SVG charts: size, colors, scales and the axis frame.
+// Gridline and text colors come from CSS (.chart-grid, .chart-tick, .chart-label in index.css).
 import { createElement as h } from "react";
 
 export const W = 560, H = 300, PAD = { l: 44, r: 16, t: 16, b: 36 };
-export const PALETTE = ["#2563eb", "#f97316", "#16a34a", "#9333ea", "#dc2626", "#0891b2", "#ca8a04", "#db2777", "#4b5563", "#65a30d"];
+// Series colors for the dark background, always used in this order (blue, orange, aqua, yellow,
+// magenta, green, violet, red). Checked for color-blind safety and contrast on the dark cards.
+export const PALETTE = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#008300", "#9085e9", "#e66767"];
 
 // map data value -> pixel
 export function scale(min, max, from, to) {
@@ -40,12 +43,12 @@ export function Frame(props) {
   const decimals = yMax - yMin < 10 ? 1 : 0;
   return [
     ...ticks(yMin, yMax, 4).map((v, i) => h("g", { key: "y" + i },
-      h("line", { x1: PAD.l, x2: W - PAD.r, y1: y(v), y2: y(v), stroke: "#e5e7eb" }),
-      h("text", { x: PAD.l - 6, y: y(v) + 4, textAnchor: "end", fontSize: 11, fill: "#6b7280" }, v.toFixed(decimals))
+      h("line", { className: "chart-grid", x1: PAD.l, x2: W - PAD.r, y1: y(v), y2: y(v) }),
+      h("text", { className: "chart-tick", x: PAD.l - 6, y: y(v) + 4, textAnchor: "end", fontSize: 11 }, v.toFixed(decimals))
     )),
-    ...xTicks.map((t, i) => h("text", { key: "x" + i, x: t.x, y: H - PAD.b + 16, textAnchor: "middle", fontSize: 11, fill: "#6b7280" },
+    ...xTicks.map((t, i) => h("text", { key: "x" + i, className: "chart-tick", x: t.x, y: H - PAD.b + 16, textAnchor: "middle", fontSize: 11 },
       wrap ? twoLines(t.label).map((line, j) => h("tspan", { key: j, x: t.x, dy: j ? 12 : 0 }, line)) : t.label)),
-    xLabel && h("text", { key: "xl", x: (W + PAD.l) / 2, y: H - 4, textAnchor: "middle", fontSize: 12 }, xLabel),
-    yLabel && h("text", { key: "yl", x: 12, y: H / 2, textAnchor: "middle", fontSize: 12, transform: `rotate(-90 12 ${H / 2})` }, yLabel),
+    xLabel && h("text", { key: "xl", className: "chart-label", x: (W + PAD.l) / 2, y: H - 4, textAnchor: "middle", fontSize: 12 }, xLabel),
+    yLabel && h("text", { key: "yl", className: "chart-label", x: 12, y: H / 2, textAnchor: "middle", fontSize: 12, transform: `rotate(-90 12 ${H / 2})` }, yLabel),
   ];
 }

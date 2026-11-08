@@ -49,7 +49,7 @@ function StudentsPage(props) {
     h(Card, { style: { padding: 8 } },
       h("div", { className: "list", ref: listRef }, students.map((s) =>
         h(Link, { key: s.id, to: "/students/" + s.id, className: s.id === selected ? "active" : "" },
-          s.name, h("span", { style: { color: "#9ca3af" } }, " · " + s.className))))),
+          s.name, h("span", { className: "muted" }, " · " + s.className))))),
     h("div", { style: { flex: 1 } }, right)
   );
 }

@@ -51,7 +51,7 @@ you use other ports.
 | `npm run seed:reset` | **Delete all data** and reseed |
 | `npm run features:check` | Which factors lower the live error? (same as Model → Check factors) |
 
-Client files in `client/public/` are served as-is: edit and refresh the browser.
+Client files (`client/src/`, `client/public/`) are served as-is: edit and refresh the browser.
 
 ## How the learning works
 
@@ -116,13 +116,36 @@ server/
   ml/dataset.js        SQL queries that build training rows (term scores, factors, trend, quiz-exam gap)
   ml/engine.js         train / runPredictions / scenario / checkFeatures
   seed.js              Demo data + replays the term-by-term loop
-client/
-  serve.js             Static file server (Node built-in http, no dependencies)
-  public/config.js     API URL
-  public/index.html    Page + styles
-  public/charts.js     SVG line / scatter / bar charts (no chart library)
-  public/app.js        Dashboard, Students, Model pages
+client/                CRA-style layout (public/ + src/), but no build step
+  serve.js             Static file server (Node built-in http, no dependencies) - the "npm start"
+  public/
+    index.html         Page shell: import map, config.js, React, then src/index.js
+    config.js          API URL
+  src/
+    index.js           Entry point: renders <App>
+    index.css          All styles
+    App.js             Header + page tabs (add new pages here)
+    api.js             fetch helper for the API
+    format.js          Number formatting
+    pages/             DashboardPage, StudentsPage, ModelPage
+    components/        Card, Stat, StudentDetail, WhatIf, FactorCheck
+    charts/            LineChart, ScatterChart, BarChart + chartBase (shared axes, scales, colors)
 ```
+
+### Client code
+
+Laid out like a create-react-app project, but without installing it - no JSX and no build step:
+
+- Files in `src/` are native ES modules, one component per file with `export default`, imported
+  like in CRA: `import { createElement as h, useState } from "react"`, `import Card from "./Card.js"`.
+- React and ReactDOM load as globals from `node_modules` (`<script>` tags). An import map in
+  `index.html` sends `"react"` and `"react-dom/client"` to two tiny modules in `serve.js` that
+  re-export those globals.
+- `h(type, props, ...children)` is `React.createElement`: `h("div", { className: "card" }, "Hi")`
+  is the same as `<div className="card">Hi</div>` in JSX.
+- Differences from CRA: imports need the `.js` extension, the CSS is linked in `index.html` (not
+  imported from JS), and there is no `npm run build`.
+- Modules don't work when opening `index.html` as a file - always go through `npm start`.
 
 ## API (`http://localhost:5050/api`)
 

@@ -4,6 +4,8 @@
 //   /src/...      -> src/ (the app, as browser ES modules)
 //   /vendor/...   -> React's browser files from node_modules
 //   anything else -> public/
+//   a page path like /students/12 (no file extension) -> public/index.html, so the client-side
+//   router (src/router.js) can show that page on reload or when opened from a link
 //   npm start   -> http://localhost:3000
 const http = require("http");
 const fs = require("fs");
@@ -71,6 +73,10 @@ http
         return res.end("Forbidden");
       }
     }
+
+    // page paths have no extension; missing .js/.css files still get a real 404
+    const isPage = !path.extname(urlPath) && !urlPath.startsWith("/src/") && !urlPath.startsWith("/vendor/");
+    if (isPage && !fs.existsSync(file)) file = path.join(PUBLIC, "index.html");
 
     fs.readFile(file, (err, data) => {
       if (err) {

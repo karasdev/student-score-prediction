@@ -124,7 +124,8 @@ client/                CRA-style layout (public/ + src/), but no build step
   src/
     index.js           Entry point: renders <App>
     index.css          All styles
-    App.js             Header + page tabs (add new pages here)
+    App.js             Header + routes: which page shows for which URL (add new pages here)
+    router.js          Tiny router: usePath, matchPath, Link, navigate (instead of react-router)
     api.js             fetch helper for the API
     format.js          Number formatting
     pages/             DashboardPage, StudentsPage, ModelPage
@@ -146,6 +147,18 @@ Laid out like a create-react-app project, but without installing it - no JSX and
 - Differences from CRA: imports need the `.js` extension, the CSS is linked in `index.html` (not
   imported from JS), and there is no `npm run build`.
 - Modules don't work when opening `index.html` as a file - always go through `npm start`.
+
+Pages have their own URLs, so reload, back/forward and bookmarks work:
+
+| URL | Page |
+|---|---|
+| `/` | Dashboard |
+| `/students` | Students (opens the first student) |
+| `/students/:id` | Students, with that student selected |
+| `/model` | Model |
+
+`serve.js` answers any page path (no file extension) with `index.html`; `src/router.js` then
+picks the page. Missing `.js` / `.css` files still return 404.
 
 ## API (`http://localhost:5050/api`)
 

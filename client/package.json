@@ -1,0 +1,16 @@
+{
+  "name": "student-score-prediction-client",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Dashboard UI (React 18, plain JS, no build step)",
+  "engines": {
+    "node": ">=16.8"
+  },
+  "scripts": {
+    "start": "node serve.js"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

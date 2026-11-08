@@ -1,15 +1,34 @@
 // Turns raw assessments + factor logs into training rows: { student, term, x: {...factors}, y }
 const { pool } = require("../db");
-const { TYPE_WEIGHTS } = require("./config");
+const { TYPE_WEIGHTS, PASS_MARK } = require("./config");
 
 const key = (studentId, term) => `${studentId}:${term}`;
 
 // How many past terms the "history" factors look back (score trend uses up to 3)
 const HISTORY_TERMS = 3;
 
-// Columns of factor_logs, renamed to the names the model uses
-const FACTOR_COLUMNS = `student_id AS student, term, study_hours AS studyHours, sleep_hours AS sleepHours,
-  attendance, parent_support AS parentSupport, homework_pct AS homeworkPct, late_missing AS lateMissing`;
+// Per-term factors in factor_logs: name used in the API and model -> database column.
+// Only the first four are required; the rest may be empty (NULL).
+const LOG_FIELDS = [
+  { key: "studyHours", column: "study_hours", required: true },
+  { key: "sleepHours", column: "sleep_hours", required: true },
+  { key: "attendance", column: "attendance", required: true },
+  { key: "parentSupport", column: "parent_support", required: true },
+  { key: "homeworkPct", column: "homework_pct" },
+  { key: "lateMissing", column: "late_missing" },
+  { key: "earlyQuizPct", column: "early_quiz_pct" },
+  { key: "lateArrivals", column: "late_arrivals" },
+  { key: "participation", column: "participation" },
+  { key: "onlineLogins", column: "online_logins" },
+  { key: "confidence", column: "confidence" },
+  { key: "motivation", column: "motivation" },
+  { key: "studySkills", column: "study_skills" },
+  { key: "targetScore", column: "target_score" },
+  { key: "screenHours", column: "screen_hours" },
+];
+const FACTOR_COLUMNS = ["student_id AS student", "term"]
+  .concat(LOG_FIELDS.map((f) => `${f.column} AS ${f.key}`))
+  .join(", ");
 
 // filter: { studentId, term, minTerm, maxTerm } - all optional
 function whereClause(f, params) {
@@ -21,9 +40,10 @@ function whereClause(f, params) {
   return where.length ? "WHERE " + where.join(" AND ") : "";
 }
 
-// Map "studentId:term" -> { score, quizAvg, examAvg }
+// Map "studentId:term" -> { score, quizAvg, examAvg, failed }
 //   score   = term score (weighted average % of that term's assessments)
 //   quizAvg = average % of quizzes, examAvg = weighted average % of everything else (null if none)
+//   failed  = number of assessments below PASS_MARK
 async function loadTermStats(filter) {
   const types = Object.keys(TYPE_WEIGHTS);
   const weightCase = `CASE type ${types.map(() => "WHEN ? THEN ?").join(" ")} ELSE 1 END`;
@@ -33,7 +53,8 @@ async function loadTermStats(filter) {
     SELECT student_id, term,
            SUM(w * pct) / SUM(w) AS term_score,
            AVG(CASE WHEN type = 'quiz' THEN pct END) AS quiz_avg,
-           SUM(CASE WHEN type <> 'quiz' THEN w * pct END) / SUM(CASE WHEN type <> 'quiz' THEN w END) AS exam_avg
+           SUM(CASE WHEN type <> 'quiz' THEN w * pct END) / SUM(CASE WHEN type <> 'quiz' THEN w END) AS exam_avg,
+           SUM(pct < ${Number(PASS_MARK)}) AS failed
     FROM (SELECT student_id, term, type, score / max_score * 100 AS pct, ${weightCase} AS w
           FROM assessments ${where}) a
     GROUP BY student_id, term`;
@@ -41,7 +62,9 @@ async function loadTermStats(filter) {
   const num = (v) => (v == null ? null : Number(v));
   const stats = new Map();
   for (const r of rows) {
-    stats.set(key(r.student_id, r.term), { score: num(r.term_score), quizAvg: num(r.quiz_avg), examAvg: num(r.exam_avg) });
+    stats.set(key(r.student_id, r.term), {
+      score: num(r.term_score), quizAvg: num(r.quiz_avg), examAvg: num(r.exam_avg), failed: num(r.failed),
+    });
   }
   return stats;
 }
@@ -75,17 +98,13 @@ function scoreTrend(student, term, stats) {
 function allFeatures(log, stats) {
   const prev = stats.get(key(log.student, log.term - 1));
   if (!prev) return null;
-  return {
-    studyHours: log.studyHours,
-    sleepHours: log.sleepHours,
-    attendance: log.attendance,
-    parentSupport: log.parentSupport,
-    homeworkPct: log.homeworkPct,
-    lateMissing: log.lateMissing,
-    prevScore: prev.score,
-    scoreTrend: scoreTrend(log.student, log.term, stats),
-    quizExamGap: prev.quizAvg != null && prev.examAvg != null ? prev.quizAvg - prev.examAvg : 0,
-  };
+  const x = {};
+  for (const f of LOG_FIELDS) x[f.key] = log[f.key];
+  x.prevScore = prev.score;
+  x.scoreTrend = scoreTrend(log.student, log.term, stats);
+  x.quizExamGap = prev.quizAvg != null && prev.examAvg != null ? prev.quizAvg - prev.examAvg : 0;
+  x.failedLastTerm = prev.failed;
+  return x;
 }
 
 // Just the factors in `keys`. Returns null if any of them is missing.
@@ -139,6 +158,6 @@ async function latestScoredTerm() {
 }
 
 module.exports = {
-  key, HISTORY_TERMS, loadTermStats, loadTermScores, loadFactorLogs, featuresFor,
+  key, HISTORY_TERMS, LOG_FIELDS, loadTermStats, loadTermScores, loadFactorLogs, featuresFor,
   loadData, rowsFrom, buildRows, latestScoredTerm,
 };

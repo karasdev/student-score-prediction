@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS factor_logs (
   parent_support  TINYINT      NOT NULL,          -- 1-5 rating
   homework_pct    DECIMAL(5,1) NULL,              -- % of homework handed in (optional)
   late_missing    SMALLINT     NULL,              -- late or missing assignments (optional)
+  early_quiz_pct  DECIMAL(5,1) NULL,              -- % on this term's first quizzes (optional)
+  late_arrivals   SMALLINT     NULL,              -- times late to class (optional)
+  participation   TINYINT      NULL,              -- teacher rating 1-5 (optional)
+  online_logins   DECIMAL(5,1) NULL,              -- online platform logins per week (optional)
+  confidence      TINYINT      NULL,              -- survey 1-5 (optional)
+  motivation      TINYINT      NULL,              -- survey 1-5 (optional)
+  study_skills    TINYINT      NULL,              -- survey 1-5 (optional)
+  target_score    DECIMAL(5,1) NULL,              -- survey: score the student aims for, % (optional)
+  screen_hours    DECIMAL(4,1) NULL,              -- survey: screen time h/day (optional)
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_factor_student FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
   CONSTRAINT uq_factor_student_term UNIQUE (student_id, term),
@@ -45,7 +54,16 @@ CREATE TABLE IF NOT EXISTS factor_logs (
   CONSTRAINT chk_factor_attendance CHECK (attendance BETWEEN 0 AND 100),
   CONSTRAINT chk_factor_parent     CHECK (parent_support BETWEEN 1 AND 5),
   CONSTRAINT chk_factor_homework   CHECK (homework_pct BETWEEN 0 AND 100),
-  CONSTRAINT chk_factor_late       CHECK (late_missing >= 0)
+  CONSTRAINT chk_factor_late       CHECK (late_missing >= 0),
+  CONSTRAINT chk_factor_early_quiz    CHECK (early_quiz_pct BETWEEN 0 AND 100),
+  CONSTRAINT chk_factor_late_arrivals CHECK (late_arrivals >= 0),
+  CONSTRAINT chk_factor_participation CHECK (participation BETWEEN 1 AND 5),
+  CONSTRAINT chk_factor_online        CHECK (online_logins >= 0),
+  CONSTRAINT chk_factor_confidence    CHECK (confidence BETWEEN 1 AND 5),
+  CONSTRAINT chk_factor_motivation    CHECK (motivation BETWEEN 1 AND 5),
+  CONSTRAINT chk_factor_study_skills  CHECK (study_skills BETWEEN 1 AND 5),
+  CONSTRAINT chk_factor_target        CHECK (target_score BETWEEN 0 AND 100),
+  CONSTRAINT chk_factor_screen        CHECK (screen_hours BETWEEN 0 AND 24)
 );
 
 -- Every retrain is saved, so you can see how the weights change term by term.

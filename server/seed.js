@@ -4,11 +4,17 @@
 //   npm run seed:reset    -> DELETES all students, scores, factors, models and predictions first
 //
 // The data is made up: scores follow hidden "true" weights that drift a little each term,
-// so you can watch the engine re-learn them. Homework % has a real (hidden) effect; late/missing
-// assignments only echo homework %, and score trend / quiz-exam gap carry no extra signal -
-// so "Check factors" should add ONE of homework % / late-missing (they carry the same signal; with
-// this little data either can win) and leave the rest out. Terms 1-4 have results; term 5 has factors only
+// so you can watch the engine re-learn them. Terms 1-4 have results; term 5 has factors only
 // (that's the term being predicted).
+//
+// Candidate factors, to see what "Check factors" finds:
+//   real hidden effect:   homework %, self-confidence, participation
+//   look-alikes only:     late/missing (echoes homework %), late to class (echoes attendance),
+//                         study skills / online logins / screen time (echo study hours),
+//                         motivation (echoes confidence), target score (echoes last score)
+//   computed from scores: early quiz % (first 2 quizzes of the term - part of the term score itself),
+//                         failed tests last term, score trend, quiz-exam gap
+// With this little data the check can pick a look-alike instead of the real factor - that's normal.
 const { pool } = require("./db");
 const engine = require("./ml/engine");
 
@@ -18,12 +24,12 @@ const PREDICT_TERM = 5;
 
 // hidden truth: score = base + w·factors + noise   (study matters more each term, sleep a bit less)
 const TRUE_WEIGHTS = {
-  2: { studyHours: 4.0, sleepHours: 1.5, attendance: 0.1, parentSupport: 1.0, homeworkPct: 0.1, prevScore: 0.45 },
-  3: { studyHours: 4.5, sleepHours: 1.4, attendance: 0.1, parentSupport: 1.0, homeworkPct: 0.1, prevScore: 0.45 },
-  4: { studyHours: 5.0, sleepHours: 1.2, attendance: 0.1, parentSupport: 1.1, homeworkPct: 0.1, prevScore: 0.45 },
-  5: { studyHours: 5.5, sleepHours: 1.0, attendance: 0.1, parentSupport: 1.2, homeworkPct: 0.1, prevScore: 0.45 },
+  2: { studyHours: 4.0, sleepHours: 1.5, attendance: 0.1, parentSupport: 1.0, homeworkPct: 0.1, confidence: 1.5, participation: 0.8, prevScore: 0.45 },
+  3: { studyHours: 4.5, sleepHours: 1.4, attendance: 0.1, parentSupport: 1.0, homeworkPct: 0.1, confidence: 1.5, participation: 0.8, prevScore: 0.45 },
+  4: { studyHours: 5.0, sleepHours: 1.2, attendance: 0.1, parentSupport: 1.1, homeworkPct: 0.1, confidence: 1.5, participation: 0.8, prevScore: 0.45 },
+  5: { studyHours: 5.5, sleepHours: 1.0, attendance: 0.1, parentSupport: 1.2, homeworkPct: 0.1, confidence: 1.5, participation: 0.8, prevScore: 0.45 },
 };
-const BASE = 0;
+const BASE = -7;
 
 // seeded random numbers so every run gives the same data
 let seed = 42;
@@ -72,7 +78,12 @@ async function main() {
       attendance: uniform(75, 99),
       parent: Math.round(uniform(1, 5)),
       homework: uniform(55, 98),
+      confidence: uniform(1, 5),
+      participation: uniform(1, 5),
+      online: uniform(0.5, 4),
+      screen: uniform(1.5, 6),
     };
+    habit.motivation = 0.6 * habit.confidence + 0.4 * uniform(1, 5);
     let prevScore = uniform(45, 85); // term 1 score
 
     for (let term = 1; term <= PREDICT_TERM; term++) {
@@ -84,34 +95,54 @@ async function main() {
         homeworkPct: r1(clamp(habit.homework + normal(6), 0, 100)),
       };
       f.lateMissing = Math.max(0, Math.round((100 - f.homeworkPct) / 7 + normal(1.2)));
-      factorRows.push([s.id, term, f.studyHours, f.sleepHours, f.attendance, f.parentSupport, f.homeworkPct, f.lateMissing]);
-      if (term > TERMS_WITH_RESULTS) continue; // term 5: no results yet
+      const level = (v) => Math.round(clamp(v, 1, 5)); // 1-5 rating
+      f.confidence = level(habit.confidence + (prevScore - 65) / 25 + normal(0.5));
+      f.participation = level(habit.participation + normal(0.5));
+      f.motivation = level(habit.motivation + normal(0.6));
+      f.studySkills = level(1 + habit.study * 0.8 + normal(0.8));
+      f.targetScore = r1(clamp(prevScore + uniform(0, 15) + normal(5), 30, 100));
+      f.screenHours = r1(clamp(habit.screen - 0.4 * (f.studyHours - 2.5) + normal(0.7), 0, 12));
+      f.lateArrivals = Math.max(0, Math.round((100 - f.attendance) / 4 + normal(1.5)));
+      f.onlineLogins = r1(clamp(habit.online + 0.5 * f.studyHours + normal(1), 0, 30));
 
+      // the hidden true score (term 5's exists too - its results just aren't in yet)
       let termScore;
       if (term === 1) termScore = prevScore;
       else {
         const w = TRUE_WEIGHTS[term];
         termScore = BASE + w.studyHours * f.studyHours + w.sleepHours * f.sleepHours +
           w.attendance * f.attendance + w.parentSupport * f.parentSupport + w.homeworkPct * f.homeworkPct +
-          w.prevScore * prevScore + normal(4);
+          w.confidence * f.confidence + w.participation * f.participation + w.prevScore * prevScore + normal(4);
       }
       termScore = clamp(termScore, 5, 100);
 
       // the term's assessments scatter around the term score (quizzes are noisier)
+      const results = [];
       const add = (type, count, maxScore, noise) => {
         for (let i = 0; i < count; i++) {
           const pct = clamp(termScore + normal(noise), 0, 100);
-          assessmentRows.push([s.id, term, type, "Math", Math.round((pct / 100) * maxScore * 2) / 2, maxScore]);
+          results.push({ type, maxScore, pct });
         }
       };
       add("quiz", 6, 20, 8);
       add("monthly", 2, 50, 5);
       add("semester", 1, 100, 3);
+      f.earlyQuizPct = r1((results[0].pct + results[1].pct) / 2); // the first 2 quizzes
+
+      factorRows.push([s.id, term, f.studyHours, f.sleepHours, f.attendance, f.parentSupport, f.homeworkPct,
+        f.lateMissing, f.earlyQuizPct, f.lateArrivals, f.participation, f.onlineLogins, f.confidence,
+        f.motivation, f.studySkills, f.targetScore, f.screenHours]);
+      if (term > TERMS_WITH_RESULTS) continue; // term 5: no results yet
+      for (const a of results) {
+        assessmentRows.push([s.id, term, a.type, "Math", Math.round((a.pct / 100) * a.maxScore * 2) / 2, a.maxScore]);
+      }
       prevScore = termScore;
     }
   }
   await pool.query(
-    "INSERT INTO factor_logs (student_id, term, study_hours, sleep_hours, attendance, parent_support, homework_pct, late_missing) VALUES ?",
+    `INSERT INTO factor_logs (student_id, term, study_hours, sleep_hours, attendance, parent_support, homework_pct,
+       late_missing, early_quiz_pct, late_arrivals, participation, online_logins, confidence,
+       motivation, study_skills, target_score, screen_hours) VALUES ?`,
     [factorRows]
   );
   await pool.query(

@@ -1,6 +1,6 @@
 // The term loop: train on results, predict next term, compare when results arrive.
 const { pool } = require("../db");
-const { FEATURES, RECENCY_DECAY, RIDGE_LAMBDA } = require("./config");
+const { FEATURES, RECENCY_DECAY, RIDGE_LAMBDA, MIN_GAIN } = require("./config");
 const { fit, predict, mae } = require("./regression");
 const {
   key, HISTORY_TERMS, loadTermStats, loadFactorLogs, featuresFor, loadData, rowsFrom, latestScoredTerm,
@@ -179,7 +179,8 @@ function replay(data, keys) {
 }
 
 // How much lower is the live error with B than with A? Compared on the same predictions.
-// "helps" only if the gain is bigger than about 2 standard errors - smaller gains are likely luck.
+// "helps" only if the gain is bigger than about 2 standard errors (smaller gains are likely luck)
+// and at least MIN_GAIN points (smaller gains don't matter in practice).
 function compare(errorsA, errorsB) {
   const a = [], b = [];
   for (const [k, e] of errorsA) if (errorsB.has(k)) { a.push(e); b.push(errorsB.get(k)); }
@@ -189,7 +190,9 @@ function compare(errorsA, errorsB) {
   const diffs = a.map((v, i) => v - b[i]);
   const gain = mean(diffs);
   const se = Math.sqrt(diffs.reduce((s, d) => s + (d - gain) ** 2, 0) / (n - 1) / n);
-  const verdict = gain > 2 * se ? "helps" : gain < -2 * se ? "hurts" : "no clear effect";
+  let verdict = "no clear effect";
+  if (gain > 2 * se) verdict = gain >= MIN_GAIN ? "helps" : "too small to matter";
+  else if (gain < -2 * se) verdict = "hurts";
   return { n, maeWithout: mean(a), maeWith: mean(b), gain, se, verdict };
 }
 

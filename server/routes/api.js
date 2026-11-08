@@ -1,7 +1,7 @@
 const express = require("express");
 const { pool } = require("../db");
 const { FEATURES } = require("../ml/config");
-const { loadTermScores, loadFactorLogs, key } = require("../ml/dataset");
+const { loadTermScores, loadFactorLogs, key, LOG_FIELDS } = require("../ml/dataset");
 const engine = require("../ml/engine");
 
 const router = express.Router();
@@ -93,21 +93,20 @@ router.get("/factors", ah(async (req, res) => {
   }));
 }));
 
-// homeworkPct and lateMissing are optional (left empty if not sent).
-// It's a full replace: a field you leave out is cleared.
+// studyHours, sleepHours, attendance and parentSupport are required; the other factors are optional.
+// It's a full replace: a factor you leave out is cleared. (All factor names: LOG_FIELDS in ml/dataset.js)
 router.put("/factors", ah(async (req, res) => {
-  const { student, term, studyHours, sleepHours, attendance, parentSupport, homeworkPct, lateMissing } = req.body;
-  if ([student, term, studyHours, sleepHours, attendance, parentSupport].some((v) => v == null)) {
-    return badRequest(res, "student, term, studyHours, sleepHours, attendance and parentSupport are required");
-  }
+  const { student, term } = req.body;
+  const required = ["student", "term"].concat(LOG_FIELDS.filter((f) => f.required).map((f) => f.key));
+  const missing = required.filter((k) => req.body[k] == null);
+  if (missing.length) return badRequest(res, `Missing: ${missing.join(", ")}`);
+  const columns = LOG_FIELDS.map((f) => f.column);
+  const values = LOG_FIELDS.map((f) => (req.body[f.key] == null ? null : req.body[f.key]));
   await pool.query(
-    `INSERT INTO factor_logs (student_id, term, study_hours, sleep_hours, attendance, parent_support, homework_pct, late_missing)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE study_hours = VALUES(study_hours), sleep_hours = VALUES(sleep_hours),
-       attendance = VALUES(attendance), parent_support = VALUES(parent_support),
-       homework_pct = VALUES(homework_pct), late_missing = VALUES(late_missing)`,
-    [student, term, studyHours, sleepHours, attendance, parentSupport,
-      homeworkPct == null ? null : homeworkPct, lateMissing == null ? null : lateMissing]
+    `INSERT INTO factor_logs (student_id, term, ${columns.join(", ")})
+     VALUES (?, ?, ${columns.map(() => "?").join(", ")})
+     ON DUPLICATE KEY UPDATE ${columns.map((c) => `${c} = VALUES(${c})`).join(", ")}`,
+    [student, term, ...values]
   );
   const [log] = await loadFactorLogs({ studentId: student, term });
   res.json(log);

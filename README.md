@@ -71,12 +71,23 @@ All factors are listed in `server/ml/config.js`. Only those with `use: true` get
 | Quiz-exam gap | last term: quiz average % minus exam average % (computed) | candidate |
 | Homework % | entered per term (`factor_logs.homework_pct`, optional) | candidate |
 | Late/missing | late or missing assignments, entered per term (`factor_logs.late_missing`, optional) | candidate |
+| Early quiz % | average % of this term's first quizzes, entered per term (only useful if you predict after them) | candidate |
+| Failed tests (last term) | number of last term's assessments below `PASS_MARK` (50%) (computed) | candidate |
+| Late to class | times late this term, entered per term | candidate |
+| Participation | teacher rating 1-5, entered per term | candidate |
+| Online logins/wk | logins per week on the class website, entered per term | candidate |
+| Self-confidence, motivation, study skills | short student survey, 1-5 each, entered per term | candidate |
+| Target score % | survey: the score the student aims for | candidate |
+| Screen h/day | survey: screen time per day | candidate |
+
+Not included on purpose: family income, health and stress. They are sensitive data about minors.
 
 Computed factors only use results from earlier terms, so they are known before the term's results.
 
 **Adding a factor:** Model → **Check factors** (or `npm run features:check`) replays past terms
 with and without each factor and compares the live error, on the same predictions. A factor
-counts as helping only if it lowers the live error by more than 2× the noise. Set `use: true` for
+counts as helping only if it lowers the live error by more than 2× the noise and by at least
+`MIN_GAIN` (0.1 points) - smaller gains aren't worth the data entry. Set `use: true` for
 the ones marked **add**, then retrain. "No clear effect" means too small to measure with the data
 so far, not proven useless. Keep the total around 8-10 factors for ~80 students.
 
@@ -170,7 +181,7 @@ picks the page. Missing `.js` / `.css` files still return 404.
 | GET | `/assessments` | `?student=&term=` |
 | POST | `/assessments` | `{ student, term, type, subject?, date?, score, maxScore }` (`type`: quiz/monthly/semester/yearly) |
 | GET | `/factors` | `?student=&term=` |
-| PUT | `/factors` | `{ student, term, studyHours, sleepHours, attendance, parentSupport, homeworkPct?, lateMissing? }` (insert or replace) |
+| PUT | `/factors` | `{ student, term, studyHours, sleepHours, attendance, parentSupport, ...optional factors }` (insert or replace; optional names: `LOG_FIELDS` in `server/ml/dataset.js`) |
 | GET | `/features` | all factors with `use` and `source` |
 | GET | `/features/check` | which factors lower the live error (saves nothing) |
 | GET | `/models` | all model versions |

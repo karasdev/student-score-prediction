@@ -14,6 +14,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 24px; }
 .stat .value { font-size: 26px; font-weight: 600; }
 .stat .label { color: #6b7280; font-size: 13px; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.table-scroll { overflow-x: auto; }
+.table-scroll th, .table-scroll td { white-space: nowrap; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #f3f4f6; }
 th { color: #6b7280; font-weight: 500; }
 .row { display: flex; gap: 16px; align-items: flex-start; }

@@ -9,29 +9,29 @@ const { config } = require("../db");
 // Columns added after the first version. CREATE TABLE IF NOT EXISTS skips existing tables,
 // so these are added with ALTER TABLE when missing. Keep in sync with schema.sql.
 const ADDED_COLUMNS = [
-  {
-    table: "factor_logs",
-    column: "homework_pct",
-    sql: `ADD COLUMN homework_pct DECIMAL(5,1) NULL AFTER parent_support,
-          ADD CONSTRAINT chk_factor_homework CHECK (homework_pct BETWEEN 0 AND 100)`,
-  },
-  {
-    table: "factor_logs",
-    column: "late_missing",
-    sql: `ADD COLUMN late_missing SMALLINT NULL AFTER homework_pct,
-          ADD CONSTRAINT chk_factor_late CHECK (late_missing >= 0)`,
-  },
+  // [table, column, type, check rule, constraint name]
+  ["factor_logs", "homework_pct", "DECIMAL(5,1)", "homework_pct BETWEEN 0 AND 100", "chk_factor_homework"],
+  ["factor_logs", "late_missing", "SMALLINT", "late_missing >= 0", "chk_factor_late"],
+  ["factor_logs", "early_quiz_pct", "DECIMAL(5,1)", "early_quiz_pct BETWEEN 0 AND 100", "chk_factor_early_quiz"],
+  ["factor_logs", "late_arrivals", "SMALLINT", "late_arrivals >= 0", "chk_factor_late_arrivals"],
+  ["factor_logs", "participation", "TINYINT", "participation BETWEEN 1 AND 5", "chk_factor_participation"],
+  ["factor_logs", "online_logins", "DECIMAL(5,1)", "online_logins >= 0", "chk_factor_online"],
+  ["factor_logs", "confidence", "TINYINT", "confidence BETWEEN 1 AND 5", "chk_factor_confidence"],
+  ["factor_logs", "motivation", "TINYINT", "motivation BETWEEN 1 AND 5", "chk_factor_motivation"],
+  ["factor_logs", "study_skills", "TINYINT", "study_skills BETWEEN 1 AND 5", "chk_factor_study_skills"],
+  ["factor_logs", "target_score", "DECIMAL(5,1)", "target_score BETWEEN 0 AND 100", "chk_factor_target"],
+  ["factor_logs", "screen_hours", "DECIMAL(4,1)", "screen_hours BETWEEN 0 AND 24", "chk_factor_screen"],
 ];
 
 async function addMissingColumns(conn) {
-  for (const c of ADDED_COLUMNS) {
+  for (const [table, column, type, check, constraint] of ADDED_COLUMNS) {
     const [found] = await conn.query(
       "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
-      [config.database, c.table, c.column]
+      [config.database, table, column]
     );
     if (found.length) continue;
-    await conn.query(`ALTER TABLE \`${c.table}\` ${c.sql}`);
-    console.log(`Added column ${c.table}.${c.column}`);
+    await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN ${column} ${type} NULL, ADD CONSTRAINT ${constraint} CHECK (${check})`);
+    console.log(`Added column ${table}.${column}`);
   }
 }
 

@@ -25,7 +25,30 @@ const FEATURES = [
   { key: "homeworkPct", label: "Homework %", use: false, source: "log" },
   // number of late or missing assignments this term
   { key: "lateMissing", label: "Late/missing", use: false, source: "log" },
+
+  // --- school records ---
+  // average % of this term's first quizzes (first 4-5 weeks). Only useful if you predict after them.
+  { key: "earlyQuizPct", label: "Early quiz %", use: false, source: "log" },
+  // last term: number of assessments below PASS_MARK
+  { key: "failedLastTerm", label: "Failed tests (last term)", use: false, source: "history" },
+  // times late to class this term
+  { key: "lateArrivals", label: "Late to class", use: false, source: "log" },
+  // teacher's rating, 1-5
+  { key: "participation", label: "Participation", use: false, source: "log" },
+  // logins per week on the class website / online platform
+  { key: "onlineLogins", label: "Online logins/wk", use: false, source: "log" },
+
+  // --- short student survey ---
+  // all 1-5 except target score (%) and screen time (hours/day)
+  { key: "confidence", label: "Self-confidence", use: false, source: "log" },
+  { key: "motivation", label: "Motivation", use: false, source: "log" },
+  { key: "studySkills", label: "Study skills", use: false, source: "log" },
+  { key: "targetScore", label: "Target score %", use: false, source: "log" },
+  { key: "screenHours", label: "Screen h/day", use: false, source: "log" },
 ];
+
+// An assessment below this % counts as failed (for "Failed tests (last term)")
+const PASS_MARK = 50;
 
 // How much each assessment type counts toward a student's term score.
 // A term score = weighted average of all assessment percentages in that term.
@@ -39,4 +62,8 @@ const RECENCY_DECAY = 0.6;
 // when there is little data. 0 = plain least squares.
 const RIDGE_LAMBDA = 1.0;
 
-module.exports = { FEATURES, TYPE_WEIGHTS, RECENCY_DECAY, RIDGE_LAMBDA };
+// "Check factors" only advises adding a factor if it lowers the live error by at least this many
+// points (and by more than 2x the noise). Smaller gains aren't worth the extra data entry.
+const MIN_GAIN = 0.1;
+
+module.exports = { FEATURES, PASS_MARK, TYPE_WEIGHTS, RECENCY_DECAY, RIDGE_LAMBDA, MIN_GAIN };
